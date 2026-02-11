@@ -38,7 +38,7 @@ class proforma_plantilla extends ventas_imprimir
 
         if (isset($_REQUEST['presupuesto']) && isset($_REQUEST['id'])) {
             $pre = new presupuesto_cliente();
-            $this->documento = $pre->get($_REQUEST['id']);
+            $this->documento = $pre->get((int) $_REQUEST['id']);
             if ($this->documento) {
                 $cliente = new cliente();
                 $this->cliente = $cliente->get($this->documento->codcliente);
