@@ -65,6 +65,14 @@ class proforma_plantilla extends ventas_imprimir
             ),
         );
         foreach ($extensiones as $ext) {
+            /// Eliminamos posibles duplicados con distinto page_from
+            $fsext0 = new fs_extension();
+            foreach ($fsext0->all_to($ext['page_to']) as $fsx) {
+                if ($fsx->name == $ext['name'] && $fsx->from != __CLASS__) {
+                    $fsx->delete();
+                }
+            }
+
             $fsext = new fs_extension($ext);
             if (!$fsext->save()) {
                 $this->new_error_msg('Error al guardar la extensión ' . $ext['name']);
