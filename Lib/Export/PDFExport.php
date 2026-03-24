@@ -33,6 +33,8 @@ use FacturaScripts\Core\Lib\Export\PDFExport as CorePDFExport;
  */
 class PDFExport extends CorePDFExport
 {
+    const THIN_LINE = 0.1;
+
     public function addBusinessDocPage($model): bool
     {
         if ($model->modelClassName() !== 'PresupuestoCliente') {
@@ -49,6 +51,9 @@ class PDFExport extends CorePDFExport
             $this->pdf->ezNewPage();
             $this->insertedHeader = false;
         }
+
+        // set thin line style so the header separator line is thin
+        $this->pdf->setLineStyle(self::THIN_LINE);
 
         $this->insertHeader($model->idempresa);
         $this->insertBusinessDocHeader($model);
@@ -93,8 +98,8 @@ class PDFExport extends CorePDFExport
             ],
             'shadeCol' => [0.95, 0.95, 0.95],
             'shadeHeadingCol' => [0.95, 0.95, 0.95],
-            'innerLineThickness' => 0.1,
-            'outerLineThickness' => 0.1,
+            'innerLineThickness' => self::THIN_LINE,
+            'outerLineThickness' => self::THIN_LINE,
             'width' => $this->tableWidth
         ];
         if (count($taxRows) > 1) {
@@ -145,8 +150,8 @@ class PDFExport extends CorePDFExport
             ],
             'shadeCol' => [0.95, 0.95, 0.95],
             'shadeHeadingCol' => [0.95, 0.95, 0.95],
-            'innerLineThickness' => 0.1,
-            'outerLineThickness' => 0.1,
+            'innerLineThickness' => self::THIN_LINE,
+            'outerLineThickness' => self::THIN_LINE,
             'width' => $this->tableWidth
         ];
         $this->pdf->ezTable($rows, $headers, '', $tableOptions);
@@ -174,10 +179,106 @@ class PDFExport extends CorePDFExport
         }
     }
 
+    /**
+     * Overrides the items table to use thin border lines.
+     */
+    protected function insertBusinessDocBody($model)
+    {
+        if ($model->modelClassName() !== 'PresupuestoCliente') {
+            parent::insertBusinessDocBody($model);
+            return;
+        }
+
+        $headers = [];
+        $tableOptions = [
+            'cols' => [],
+            'shadeCol' => [0.95, 0.95, 0.95],
+            'shadeHeadingCol' => [0.95, 0.95, 0.95],
+            'innerLineThickness' => self::THIN_LINE,
+            'outerLineThickness' => self::THIN_LINE,
+            'width' => $this->tableWidth
+        ];
+
+        foreach ($this->getLineHeaders() as $key => $value) {
+            $headers[$key] = $value['title'];
+            if (in_array($value['type'], ['number', 'percentage'], true)) {
+                $tableOptions['cols'][$key] = ['justification' => 'right'];
+            }
+        }
+
+        $tableData = [];
+        foreach ($model->getlines() as $line) {
+            $data = [];
+            foreach ($this->getLineHeaders() as $key => $value) {
+                if (property_exists($line, 'mostrar_precio') &&
+                    $line->mostrar_precio === false &&
+                    in_array($key, ['pvpunitario', 'dtopor', 'dtopor2', 'pvptotal', 'iva', 'recargo', 'irpf'], true)) {
+                    continue;
+                }
+
+                if ($key === 'referencia') {
+                    $data[$key] = empty($line->{$key}) ? Tools::fixHtml($line->descripcion) : Tools::fixHtml($line->{$key} . " - " . $line->descripcion);
+                } elseif ($key === 'cantidad' && property_exists($line, 'mostrar_cantidad')) {
+                    $data[$key] = $line->mostrar_cantidad ? $line->{$key} : '';
+                } elseif ($value['type'] === 'percentage') {
+                    $data[$key] = Tools::number($line->{$key}) . '%';
+                } elseif ($value['type'] === 'number') {
+                    $data[$key] = Tools::number($line->{$key});
+                } else {
+                    $data[$key] = $line->{$key};
+                }
+            }
+
+            $tableData[] = $data;
+
+            if (property_exists($line, 'salto_pagina') && $line->salto_pagina) {
+                $this->removeEmptyCols($tableData, $headers, Tools::number(0));
+                $this->pdf->ezTable($tableData, $headers, '', $tableOptions);
+                $tableData = [];
+                $this->pdf->ezNewPage();
+            }
+        }
+
+        if (false === empty($tableData)) {
+            $this->removeEmptyCols($tableData, $headers, Tools::number(0));
+            $this->pdf->ezTable($tableData, $headers, '', $tableOptions);
+        }
+    }
+
+    /**
+     * Overrides the payment method table to use thin border lines.
+     */
+    protected function insertInvoicePayMethod($invoice)
+    {
+        $headers = [
+            'method' => $this->i18n->trans('payment-method'),
+            'expiration' => $this->i18n->trans('expiration')
+        ];
+
+        $expiration = $invoice->finoferta ?? '';
+        $rows = [
+            ['method' => $this->getBankData($invoice), 'expiration' => $expiration]
+        ];
+
+        $tableOptions = [
+            'cols' => [
+                'method' => ['justification' => 'left'],
+                'expiration' => ['justification' => 'right']
+            ],
+            'shadeCol' => [0.95, 0.95, 0.95],
+            'shadeHeadingCol' => [0.95, 0.95, 0.95],
+            'innerLineThickness' => self::THIN_LINE,
+            'outerLineThickness' => self::THIN_LINE,
+            'width' => $this->tableWidth
+        ];
+        $this->pdf->ezText("\n");
+        $this->pdf->ezTable($rows, $headers, '', $tableOptions);
+    }
+
     protected function newLine()
     {
         $posY = $this->pdf->y + 5;
-        $this->pdf->setLineStyle(0.1);
+        $this->pdf->setLineStyle(self::THIN_LINE);
         $this->pdf->line(self::CONTENT_X, $posY, $this->tableWidth + self::CONTENT_X, $posY);
     }
 }
